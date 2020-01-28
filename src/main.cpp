@@ -159,8 +159,6 @@ run(
     // first find the b2 program
     auto b2_exe = find_b2(fs::current_path());
 
-    boost::ignore_unused(options, b2_options);
-
     if (options.count("load"))
     {
         // do load stuff
