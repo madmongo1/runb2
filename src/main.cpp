@@ -18,26 +18,32 @@ struct b2_not_found
     {}
 };
 
+struct matches
+{
+    matches(fs::path candidate)
+        : candidate_(std::move(candidate))
+    {}
+
+    bool
+    operator()(std::string_view x) const
+    {
+        return boost::iequals(x, candidate_.string());
+    }
+
+    fs::path candidate_;
+};
+
 auto
 is_b2(fs::path const &pathname) ->
 bool
 {
-    auto stat = fs::status(pathname);
-    if (stat.type() != fs::file_type::regular_file)
-        return false;
+    using namespace ranges::v3;
 
-    auto name = pathname.filename().string<std::string>();
-
-    static const auto candidates = std::array{
-        "b2.exe"sv,
-        "b2"sv
-    };
-
-    auto name_matches = [name = fs::basename(pathname)](auto &&candidate) {
-        return boost::iequals(name, candidate);
-    };
-
-    return ranges::v3::any_of(candidates, name_matches);
+    return fs::status(pathname).type() == fs::file_type::regular_file and
+           any_of({
+                      "b2.exe"sv,
+                      "b2"sv
+                  }, matches(fs::basename(pathname)));
 }
 
 auto
@@ -91,12 +97,9 @@ find_b2(fs::path initial)
     auto current = initial;
     while (1)
     {
-        auto first = fs::directory_iterator(current);
-        auto last = fs::directory_iterator();
-        for (; first != last; ++first)
+        for (auto&& entry : fs::directory_iterator(current))
         {
-            auto candidate = first->path();
-            if (is_b2(candidate))
+            if (auto candidate = entry.path() ; is_b2(candidate))
             {
                 return candidate;
             }
@@ -133,13 +136,14 @@ struct dump
     std::vector<std::string> const &args;
 };
 
-auto transform_args(std::vector<std::string> & input)
--> std::vector<char*>
+auto
+transform_args(std::vector<std::string> &input)
+-> std::vector<char *>
 {
-    auto result = std::vector<char*>();
+    auto result = std::vector<char *>();
     result.reserve(input.size() + 1);
 
-    for (auto&& arg : input)
+    for (auto &&arg : input)
     {
         result.push_back(arg.data());
     }
@@ -149,6 +153,66 @@ auto transform_args(std::vector<std::string> & input)
     return result;
 }
 
+auto
+open_out(fs::path const &p) -> std::ofstream
+{
+    auto ofs = std::ofstream(p.string());
+    ofs.exceptions(std::ios::badbit | std::ios::failbit);
+    return ofs;
+}
+
+auto
+open_in(fs::path const &p) -> std::ifstream
+{
+    auto ifs = std::ifstream(p.string());
+    if (ifs.bad())
+        throw std::runtime_error("no such store to load from: "s + p.string());
+    return ifs;
+}
+
+template<class Stream>
+auto
+to_strings(Stream &&stream)
+{
+    auto result = std::vector<std::string>();
+
+    auto next = [&] {
+        auto ok = bool(stream);
+        if (ok) ok = bool(stream >> std::quoted(result.emplace_back()));
+        if (not ok) result.pop_back();
+        return ok;
+    };
+
+    while (next());
+
+    return result;
+}
+
+template<class Vec1, class...Vecs>
+auto
+join(
+    Vec1 &&vec,
+    Vecs &&...vecs)
+{
+    auto result = std::forward<Vec1>(vec);
+
+    auto next = [&](auto &&source) {
+        if constexpr (std::is_rvalue_reference_v<decltype(source)>)
+        {
+            std::move(source.begin(), source.end(), std::back_inserter(result));
+        }
+        else
+        {
+            std::copy(source.begin(), source.end(), std::back_inserter(result));
+        }
+    };
+
+    (next(std::forward<Vecs>(vecs)), ...);
+
+    return result;
+}
+
+
 namespace po = boost::program_options;
 
 int
@@ -156,48 +220,34 @@ run(
     po::variables_map const &options,
     std::vector<std::string> b2_options)
 {
-    // first find the b2 program
-    auto b2_exe = find_b2(fs::current_path());
-
     if (options.count("load"))
     {
         // do load stuff
-        auto load_store = options.at("load").as<std::string>();
-        auto load_path = require_private_store() / load_store;
-        std::cout << "loading from " << load_path << std::endl;
-        auto ifs = std::ifstream(load_path.string<std::string>());
-        if (ifs.bad())
-            throw std::runtime_error("no such store to load from: "s + load_store);
-        std::string buffer;
-        while (ifs)
-        {
-            ifs >> std::quoted(buffer);
-            if (ifs)
-                b2_options.insert(b2_options.begin(), buffer);
-        }
+        auto load_path = require_private_store() / options.at("load").as<std::string>();
+        std::cout << "loading from " << load_path << '\n';
+        b2_options = join(to_strings(open_in(load_path)),
+                          std::move(b2_options));
     }
 
     if (options.count("store"))
     {
         // do store stuff
         auto storage_path = require_private_store() / options.at("store").as<std::string>();
-        std::cout << "storing in " << storage_path << std::endl;
-        auto ofs = std::ofstream(storage_path.string<std::string>());
-        auto sep = "";
-        for (auto &&option : b2_options)
-        {
-            ofs << sep << std::quoted(option);
-            sep = " ";
-        }
-        ofs.close();
+        std::cout << "storing in " << storage_path << '\n';
+        open_out(storage_path) << dump(b2_options);
     }
 
     if (not options.count("noexec"))
     {
+        auto b2_exe = find_b2(fs::current_path());
         std::cout << "executing: " << b2_exe << " " << dump(b2_options) << '\n';
         auto result = ::execv(b2_exe.string<std::string>().c_str(), transform_args(b2_options).data());
         if (result == -1)
             throw std::runtime_error("failed to launch b2!");
+    }
+    else
+    {
+        std::cout << "not executing: b2 " << dump(b2_options) << '\n';
     }
 
     return 0;
@@ -220,7 +270,7 @@ main(
         cmdline_desc.add_options()
             ("store", po::value<std::string>(), "store the given b2 command line in slot <string> and execute")
             ("load", po::value<std::string>(), "load the given b2 command line from slot <string> and execute")
-            ("noexec", po::value<bool>()->implicit_value(true), "set to prevent the launch of b2")
+            ("noexec", "set to prevent the launch of b2")
             ("help", "show this help");
 
         po::variables_map vm;
@@ -231,7 +281,7 @@ main(
         if (vm.count("help"))
         {
             std::cout << "usage: runb2 [options...] [options to pass to b2]\n";
-            std::cout << "\nValid Options:\n" << cmdline_desc << std::endl;
+            std::cout << "\nValid Options:\n" << cmdline_desc << '\n';
             return 0;
         }
 
@@ -239,7 +289,7 @@ main(
     }
     catch (...)
     {
-        std::cerr << program::explain() << std::endl;
+        std::cerr << program::explain() << '\n';
         return 127;
     }
 }
