@@ -35,7 +35,7 @@ namespace program {
         }
 
         static void
-        report(std::ostream &os, std::size_t level, beast::system_error const &e)
+        report(std::ostream &os, std::size_t level, system::system_error const &e)
         {
             emit(os, level, "system error: ", e.code().category().name(), " : ", e.code().value(), " : ",
                  e.code().message());
@@ -72,7 +72,7 @@ namespace program {
             {
                 std::rethrow_exception(ep);
             }
-            catch (beast::system_error &child)
+            catch (system::system_error &child)
             {
                 process(os, child, level);
             }

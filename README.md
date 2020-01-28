@@ -1,14 +1,12 @@
-# beast-softphone-problem
+# runb2
 
 ## Intention
 
-To recreate the problem reported here:
-
-https://github.com/boostorg/beast/issues/1798
+Make it easy to manage boost builds with b2
 
 ## Required toolchain
 
-This program requires a c++11 or better toolchain.
+This program requires a c++17 or better toolchain.
 
 Some very good toolchains files available here:
 
