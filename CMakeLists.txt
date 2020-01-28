@@ -19,10 +19,12 @@ find_package(Threads)
 find_package(range-v3 CONFIG REQUIRED)
 
 file(GLOB_RECURSE src_files CONFIGURE_DEPENDS "src/*.cpp" "src/*.hpp")
-add_executable(check ${src_files})
-target_include_directories(check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(check PRIVATE Boost::system Boost::filesystem Boost::program_options range-v3 OpenSSL::Crypto OpenSSL::SSL Threads::Threads)
+add_executable(runb2 ${src_files})
+target_include_directories(runb2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(runb2 PRIVATE Boost::system Boost::filesystem Boost::program_options range-v3 OpenSSL::Crypto OpenSSL::SSL Threads::Threads)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(check PRIVATE -Werror -Wall -Wextra -pedantic)
+    target_compile_options(runb2 PRIVATE -Werror -Wall -Wextra -pedantic)
 endif ()
+
+install(TARGETS runb2)
