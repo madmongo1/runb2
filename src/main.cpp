@@ -97,9 +97,9 @@ find_b2(fs::path initial)
     auto current = initial;
     while (1)
     {
-        for (auto&& entry : fs::directory_iterator(current))
+        for (auto &&entry : fs::directory_iterator(current))
         {
-            if (auto candidate = entry.path() ; is_b2(candidate))
+            if (auto candidate = entry.path(); is_b2(candidate))
             {
                 return candidate;
             }
@@ -176,14 +176,10 @@ to_strings(Stream &&stream)
 {
     auto result = std::vector<std::string>();
 
-    auto next = [&] {
-        auto ok = bool(stream);
-        if (ok) ok = bool(stream >> std::quoted(result.emplace_back()));
-        if (not ok) result.pop_back();
-        return ok;
-    };
-
-    while (next());
+    while (
+        (stream >> std::quoted(result.emplace_back())) or
+        (result.pop_back(), false)
+    );
 
     return result;
 }
