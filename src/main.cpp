@@ -133,6 +133,22 @@ struct dump
     std::vector<std::string> const &args;
 };
 
+auto transform_args(std::vector<std::string> & input)
+-> std::vector<char*>
+{
+    auto result = std::vector<char*>();
+    result.reserve(input.size() + 1);
+
+    for (auto&& arg : input)
+    {
+        result.push_back(arg.data());
+    }
+
+    result.push_back(nullptr);
+
+    return result;
+}
+
 namespace po = boost::program_options;
 
 int
@@ -181,6 +197,9 @@ run(
     if (not options.count("noexec"))
     {
         std::cout << "executing: " << b2_exe << " " << dump(b2_options) << '\n';
+        auto result = ::execv(b2_exe.string<std::string>().c_str(), transform_args(b2_options).data());
+        if (result == -1)
+            throw std::runtime_error("failed to launch b2!");
     }
 
     return 0;
