@@ -26,12 +26,9 @@ namespace program {
         static void
         emit(std::ostream &os, std::size_t level, Stuff &&...stuff)
         {
-            using expand = bool[];
-
-            void(expand{
-                 bool(os << prepare_buffer(level)),
-                 bool(os << stuff) ...}
-            );
+            [&](auto&&...xs) {
+                ((os << xs), ...);
+            }(prepare_buffer(level), stuff...);
         }
 
         static void
@@ -90,7 +87,6 @@ namespace program {
         operator<<(std::ostream &os, explainer const &ex) -> std::ostream &
         {
             ex.process(os, ex.ep_);
-
             return os;
         }
     };

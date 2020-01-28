@@ -136,21 +136,25 @@ struct dump
     std::vector<std::string> const &args;
 };
 
+template<class T, class A>
+auto
+reserved(
+    std::vector<T, A> &vec,
+    std::size_t n) -> decltype(auto)
+{
+    vec.reserve(n);
+    return vec;
+}
+
 auto
 transform_args(std::vector<std::string> &input)
 -> std::vector<char *>
 {
-    auto result = std::vector<char *>();
-    result.reserve(input.size() + 1);
+    using namespace ranges;
 
-    for (auto &&arg : input)
-    {
-        result.push_back(arg.data());
-    }
-
-    result.push_back(nullptr);
-
-    return result;
+    return view::concat(
+        input | view::transform(data),
+        view::single(static_cast<char *>(nullptr))) | to_vector;
 }
 
 auto
@@ -179,7 +183,7 @@ to_strings(Stream &&stream)
     while (
         (stream >> std::quoted(result.emplace_back())) or
         (result.pop_back(), false)
-    );
+        );
 
     return result;
 }
@@ -233,17 +237,17 @@ run(
         open_out(storage_path) << dump(b2_options);
     }
 
-    if (not options.count("noexec"))
+    if (options.count("noexec"))
+    {
+        std::cout << "not executing: b2 " << dump(b2_options) << '\n';
+    }
+    else
     {
         auto b2_exe = find_b2(fs::current_path());
         std::cout << "executing: " << b2_exe << " " << dump(b2_options) << '\n';
         auto result = ::execv(b2_exe.string<std::string>().c_str(), transform_args(b2_options).data());
         if (result == -1)
             throw std::runtime_error("failed to launch b2!");
-    }
-    else
-    {
-        std::cout << "not executing: b2 " << dump(b2_options) << '\n';
     }
 
     return 0;
