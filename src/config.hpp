@@ -6,7 +6,6 @@
 namespace program
 {
     namespace system = boost::system;
-    namespace fs = boost::filesystem;
+    namespace fs     = boost::filesystem;
     using namespace std::literals;
-
-}
+}   // namespace program

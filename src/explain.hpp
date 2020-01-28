@@ -1,52 +1,52 @@
 #pragma once
 
 #include "config.hpp"
+
 #include <exception>
 #include <ostream>
 #include <string>
 
-namespace program {
-
+namespace program
+{
     struct explainer
     {
         std::exception_ptr ep_;
 
-        static auto
-        prepare_buffer(std::size_t level)
-        -> std::string &
+        static auto prepare_buffer(std::size_t level) -> std::string &
         {
             static thread_local std::string buffer;
             buffer.clear();
-            if (level) buffer += '\n';
+            if (level)
+                buffer += '\n';
             buffer.append(level, ' ');
             return buffer;
         }
 
-        template<class...Stuff>
-        static void
-        emit(std::ostream &os, std::size_t level, Stuff &&...stuff)
+        template < class... Stuff >
+        static void emit(std::ostream &os, std::size_t level, Stuff &&... stuff)
         {
-            [&](auto&&...xs) {
-                ((os << xs), ...);
-            }(prepare_buffer(level), stuff...);
+            [&](auto &&... xs) { ((os << xs), ...); }(prepare_buffer(level), stuff...);
         }
 
-        static void
-        report(std::ostream &os, std::size_t level, system::system_error const &e)
+        static void report(std::ostream &os, std::size_t level, system::system_error const &e)
         {
-            emit(os, level, "system error: ", e.code().category().name(), " : ", e.code().value(), " : ",
+            emit(os,
+                 level,
+                 "system error: ",
+                 e.code().category().name(),
+                 " : ",
+                 e.code().value(),
+                 " : ",
                  e.code().message());
         }
 
-        static void
-        report(std::ostream &os, std::size_t level, std::exception const &e)
+        static void report(std::ostream &os, std::size_t level, std::exception const &e)
         {
             emit(os, level, "exception: ", e.what());
         }
 
-        template<class Exception>
-        static void
-        process(std::ostream &os, Exception &e, std::size_t level = 0)
+        template < class Exception >
+        static void process(std::ostream &os, Exception &e, std::size_t level = 0)
         {
             using namespace std::literals;
 
@@ -62,8 +62,7 @@ namespace program {
             }
         }
 
-        static void
-        process(std::ostream &os, std::exception_ptr ep, std::size_t level = 0)
+        static void process(std::ostream &os, std::exception_ptr ep, std::size_t level = 0)
         {
             try
             {
@@ -83,17 +82,12 @@ namespace program {
             }
         }
 
-        friend auto
-        operator<<(std::ostream &os, explainer const &ex) -> std::ostream &
+        friend auto operator<<(std::ostream &os, explainer const &ex) -> std::ostream &
         {
             ex.process(os, ex.ep_);
             return os;
         }
     };
 
-    inline auto
-    explain(std::exception_ptr ep = std::current_exception()) -> explainer
-    {
-        return explainer{ep};
-    }
-}
+    inline auto explain(std::exception_ptr ep = std::current_exception()) -> explainer { return explainer { ep }; }
+}   // namespace program
