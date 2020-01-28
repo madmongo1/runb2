@@ -4,6 +4,19 @@
 
 Make it easy to manage boost builds with b2
 
+## Building with your own dependencies
+
+By default, this project uses Hunter to find and build required dependencies.
+
+If you would like cmake to find your own dependencies, simply set the following command line 
+option on the initial invocation of `camke`:
+
+`-DHUNTER_ENABLED=OFF`
+
+Hunter documentation is here:
+
+https://github.com/cpp-pm/hunter
+
 ## Required toolchain
 
 This program requires a c++17 or better toolchain.
