@@ -171,7 +171,7 @@ run(
         if (ifs.bad())
             throw std::runtime_error("no such store to load from: "s + load_store);
         std::string buffer;
-        while (not ifs.eof())
+        while (ifs)
         {
             ifs >> std::quoted(buffer);
             if (ifs)
