@@ -12,15 +12,18 @@ In order of importance:
 
 2. Is it elegant, using accepted idioms, no early pessimisation?
 
-3. Did you use spaces rather than tabs?
+3. Could you have done it a more pythonic, perlish or lisp-like way?
 
-4. Did I avoid re-styling code that I didn't change? (This makes tracking diffs impossible)
+4. Did you use spaces rather than tabs?
 
-5. Is is readable?
+5. Did you avoid re-styling code that you didn't change? (This makes tracking diffs impossible)
 
-6. Did you star my repo?
+6. Is it readable?
+
+7. Did you star my repo?
 
 Other than that there is no style guide. C++ is a free-form language. Let's keep it that way.
 
-Extra points awarded for elegant, clever and succinct use of c++ language features.
+Extra points awarded for elegant, clever and succinct use of c++ language features. Reading code should be an 
+engaging, rewarding learning experience.
   
