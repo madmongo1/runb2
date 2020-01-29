@@ -48,10 +48,8 @@ namespace program
         };
 
         auto result = make_path(std::getenv("HOME"));
-        if (not result)
-            result = make_path(std::getenv("USERPROFILE"));
-        if (not result)
-            result = make_path(std::getenv("HOMEDRIVE"), std::getenv("HOMEPATH"));
+        result or (result = make_path(std::getenv("USERPROFILE")));
+        result or (result = make_path(std::getenv("HOMEDRIVE"), std::getenv("HOMEPATH")));
         return *result;
     }
     catch (...)
@@ -64,10 +62,7 @@ namespace program
     {
         auto result = home_dir() / ".runb2";
 
-        if (not fs::exists(result))
-        {
-            fs::create_directories(result);
-        }
+        fs::exists(result) or fs::create_directories(result);
 
         return result;
     }
@@ -78,29 +73,28 @@ namespace program
 
     auto find_b2(fs::path initial) -> fs::path
     {
-        if (not initial.is_absolute())
-            throw std::invalid_argument("find_b2: path not absolute: "s + initial.string< std::string >());
+        initial.is_absolute() or
+            (throw std::invalid_argument("find_b2: path not absolute: "s + initial.string< std::string >()), true);
 
         auto current = initial;
-        while (1)
+
+        auto up = [&] {
+            auto go = [&] {
+                current = current.parent_path();
+                return true;
+            };
+
+            return current.has_parent_path() and go();
+        };
+
+        do
         {
             for (auto &&entry : fs::directory_iterator(current))
-            {
                 if (auto candidate = entry.path(); is_b2(candidate))
-                {
                     return candidate;
-                }
-            }
+        } while (up());
 
-            if (current.has_parent_path())
-            {
-                current = current.parent_path();
-            }
-            else
-            {
-                throw b2_not_found(initial);
-            }
-        }
+        throw b2_not_found(initial);
     }
 
     struct dump
@@ -112,7 +106,7 @@ namespace program
 
         friend std::ostream &operator<<(std::ostream &os, dump const &d)
         {
-            ranges::v3::for_each(d.args, [&os, sep = ""](auto &&arg) mutable {
+            ranges::for_each(d.args, [&os, sep = ""](auto &&arg) mutable {
                 os << sep << std::quoted(arg);
                 sep = " ";
             });
@@ -139,8 +133,7 @@ namespace program
     auto open_in(fs::path const &p) -> std::ifstream
     {
         auto ifs = std::ifstream(p.string());
-        if (ifs.bad())
-            throw std::runtime_error("no such store to load from: "s + p.string());
+        ifs.bad() and (throw std::runtime_error("no such store to load from: "s + p.string()), true);
         return ifs;
     }
 
@@ -158,17 +151,15 @@ namespace program
     template < class Vec1, class... Vecs >
     auto join(Vec1 &&vec, Vecs &&... vecs)
     {
+        using namespace ranges;
+
         auto result = std::forward< Vec1 >(vec);
 
         auto next = [&](auto &&source) {
             if constexpr (std::is_rvalue_reference_v< decltype(source) >)
-            {
-                std::move(source.begin(), source.end(), std::back_inserter(result));
-            }
+                move(source, back_inserter(result));
             else
-            {
-                std::copy(source.begin(), source.end(), std::back_inserter(result));
-            }
+                copy(source, back_inserter(result));
         };
 
         (next(std::forward< Vecs >(vecs)), ...);
@@ -197,16 +188,14 @@ namespace program
         }
 
         if (options.count("noexec"))
-        {
             std::cout << "not executing: b2 " << dump(b2_options) << '\n';
-        }
         else
         {
             auto b2_exe = find_b2(fs::current_path());
+            options.count("nocd") or (fs::current_path(b2_exe.parent_path()), false);
             std::cout << "executing: " << b2_exe << " " << dump(b2_options) << '\n';
             auto result = ::execv(b2_exe.string< std::string >().c_str(), transform_args(b2_options).data());
-            if (result == -1)
-                throw std::runtime_error("failed to launch b2!");
+            result == -1 and (throw std::runtime_error("failed to launch b2!"), true);
         }
 
         return 0;
@@ -222,10 +211,15 @@ int main(int argc, char **argv)
     {
         auto cmdline_desc = po::options_description();
 
-        cmdline_desc.add_options()(
-            "store", po::value< std::string >(), "store the given b2 command line in slot <string> and execute")(
-            "load", po::value< std::string >(), "load the given b2 command line from slot <string> and execute")(
-            "noexec", "set to prevent the launch of b2")("help", "show this help");
+        // clang-format off
+        cmdline_desc.add_options()
+            ("load", po::value< std::string >(), "load the given b2 command line from slot <string> and execute")
+            ("store", po::value< std::string >(), "store the given b2 command line in slot <string> and execute")
+            ("nocd", "normally the current working directory will be set to the directory where b2 was found. "
+                     "Setting this option disables this.")
+            ("noexec", "set to prevent the launch of b2")
+            ("help", "show this help");
+        // clang-format on
 
         po::variables_map vm;
         auto cmdline_opts = po::command_line_parser(argc, argv).options(cmdline_desc).allow_unregistered().run();
