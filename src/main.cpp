@@ -42,13 +42,16 @@ namespace program
     {
         auto make_path = [](auto... ps) {
             auto result = std::optional< fs::path >();
-            (ps and ... and (result.emplace((fs::path(ps) / ...)), true));
+            if ((ps and ...))
+                result.emplace((fs::path(ps) / ...));
             return result;
         };
 
         auto result = make_path(std::getenv("HOME"));
-        result or (result = make_path(std::getenv("USERPROFILE")));
-        result or (result = make_path(std::getenv("HOMEDRIVE"), std::getenv("HOMEPATH")));
+        if (not result)
+            result = make_path(std::getenv("USERPROFILE"));
+        if (not result)
+            result = make_path(std::getenv("HOMEDRIVE"), std::getenv("HOMEPATH"));
         return *result;
     }
     catch (...)
@@ -61,7 +64,8 @@ namespace program
     {
         auto result = home_dir() / ".runb2";
 
-        fs::exists(result) or fs::create_directories(result);
+        if(not fs::exists(result))
+            fs::create_directories(result);
 
         return result;
     }
@@ -70,10 +74,16 @@ namespace program
         std::throw_with_nested(std::runtime_error("require_private_store: failed"));
     }
 
-    auto find_b2(fs::path initial) -> fs::path
+    auto require_absolute(const char *context, fs::path const &p) -> void
     {
-        initial.is_absolute() or
-            (throw std::invalid_argument("find_b2: path not absolute: "s + initial.string< std::string >()), true);
+        if (not p.is_absolute())
+            throw std::invalid_argument(context + ": path not absolute: "s + p.string());
+    }
+
+    auto find_b2(fs::path initial) -> fs::path
+    try
+    {
+        require_absolute("find_b2", initial);
 
         auto current = initial;
 
@@ -93,7 +103,11 @@ namespace program
                     return candidate;
         } while (up());
 
-        throw b2_not_found(initial);
+        throw std::runtime_error("filesystem search exhausted");
+    }
+    catch (...)
+    {
+        std::throw_with_nested(b2_not_found(initial));
     }
 
     struct dump
@@ -132,7 +146,8 @@ namespace program
     auto open_in(fs::path const &p) -> std::ifstream
     {
         auto ifs = std::ifstream(p.string());
-        ifs.bad() and (throw std::runtime_error("no such store to load from: "s + p.string()), true);
+        if (ifs.bad())
+            throw std::runtime_error("no such store to load from: "s + p.string());
         return ifs;
     }
 
@@ -191,10 +206,12 @@ namespace program
         else
         {
             auto b2_exe = find_b2(fs::current_path());
-            options.count("nocd") or (fs::current_path(b2_exe.parent_path()), false);
+            if (not options.count("nocd"))
+                fs::current_path(b2_exe.parent_path());
             std::cout << "executing: " << b2_exe << " " << dump(b2_options) << '\n';
             auto result = ::execv(b2_exe.string< std::string >().c_str(), transform_args(b2_options).data());
-            result == -1 and (throw std::runtime_error("failed to launch b2!"), true);
+            if (result == -1)
+                throw std::runtime_error("failed to launch b2!");
         }
 
         return 0;
