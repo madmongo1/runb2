@@ -42,8 +42,7 @@ namespace program
     {
         auto make_path = [](auto... ps) {
             auto result = std::optional< fs::path >();
-            if ((ps and ...))
-                result.emplace((fs::path(ps) / ...));
+            (ps and ... and (result.emplace((fs::path(ps) / ...)), true));
             return result;
         };
 
