@@ -5,6 +5,7 @@
 #include <boost/program_options.hpp>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <range/v3/all.hpp>
 
 namespace program
@@ -31,7 +32,7 @@ namespace program
 
     auto is_b2(fs::path const &pathname) -> bool
     {
-        using namespace ranges::v3;
+        using namespace ranges;
 
         return fs::status(pathname).type() == fs::file_type::regular_file and
                any_of({ "b2.exe"sv, "b2"sv }, matches(fs::basename(pathname)));
@@ -133,7 +134,11 @@ namespace program
     {
         using namespace ranges;
 
-        return view::concat(input | view::transform(data), view::single(static_cast< char * >(nullptr))) | to_vector;
+        auto result = std::vector<char*>();
+        result.reserve(input.size() + 1);
+        transform(input, back_inserter(result), data);
+        push_back(result, nullptr);
+        return result;
     }
 
     auto open_out(fs::path const &p) -> std::ofstream
